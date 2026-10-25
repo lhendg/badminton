@@ -12,6 +12,7 @@
   --bg:#E7EEE9;--surface:#FFFFFF;--ink:#14241D;--muted:#55695F;--rule:#CBD8D0;
   --court:#1D6A4D;--court-ink:#FFFFFF;--shuttle:#F0CE45;--shuttle-ink:#2A2306;
   --warn:#A33A2B;--chip:#DCE7E0;
+  --team-a:#2D5C9C;--team-b:#B0432C;
   color-scheme:light;box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
 }
@@ -19,13 +20,13 @@
   :root:not([data-theme="light"]){
     --bg:#0E1814;--surface:#16231D;--ink:#E4EEE8;--muted:#93A89D;--rule:#2A3B33;
     --court:#1B5A41;--court-ink:#F4FBF7;--shuttle:#E6C53F;--shuttle-ink:#221C04;
-    --warn:#E8897A;--chip:#22332B;color-scheme:dark;
+    --warn:#E8897A;--chip:#22332B;--team-a:#33649F;--team-b:#A9472F;color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --bg:#0E1814;--surface:#16231D;--ink:#E4EEE8;--muted:#93A89D;--rule:#2A3B33;
   --court:#1B5A41;--court-ink:#F4FBF7;--shuttle:#E6C53F;--shuttle-ink:#221C04;
-  --warn:#E8897A;--chip:#22332B;color-scheme:dark;
+  --warn:#E8897A;--chip:#22332B;--team-a:#33649F;--team-b:#A9472F;color-scheme:dark;
 }
 html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 110px)}
 *,*::before,*::after{box-sizing:inherit}
@@ -72,11 +73,13 @@ h2:first-child{margin-top:4px}
 .court .cl{font-size:12px;opacity:.8;margin:0 2px 6px}
 .cbox{display:grid;grid-template-columns:1fr 14px 1fr;border:2px solid rgba(255,255,255,.85)}
 .side{padding:10px 8px;display:flex;flex-direction:column;justify-content:center;gap:2px;min-height:72px}
-.side:first-child{border-right:0}
+.side:first-child{border-right:0;background:var(--team-a)}
+.side:last-child{background:var(--team-b)}
 .net{background:repeating-linear-gradient(to bottom,rgba(255,255,255,.95) 0 4px,transparent 4px 8px);width:3px;justify-self:center}
 .pn{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:600;font-size:20px;line-height:1.15;display:flex;align-items:center;gap:6px;overflow-wrap:anywhere}
 .side:last-child .pn{justify-content:flex-end;text-align:right}
 .r2{font-weight:700;margin-left:-4px;flex:none}
+.court-score{width:100%;margin-top:8px}
 .sits{margin:10px 2px 0;color:var(--muted);font-size:15px}
 .sits b{color:var(--ink);font-weight:600}
 .ractions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
@@ -148,8 +151,9 @@ td .pname{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:6
 .halves{flex:1;display:flex;flex-direction:column;margin:10px 0;border:3px solid rgba(255,255,255,.9);min-height:0}
 .halves.swapped{flex-direction:column-reverse}
 .half{flex:1;border:0;background:transparent;color:var(--court-ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;min-height:0;padding:8px;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none}
-.half:active{background:rgba(255,255,255,.12)}
-.half-b{background:rgba(0,0,0,.14)}
+.half-a{background:var(--team-a)}
+.half-b{background:var(--team-b)}
+.half:active{filter:brightness(1.15)}
 .hnames{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:clamp(22px,6vw,40px);font-weight:600;text-align:center}
 .hscore{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:min(30vw,22vh);line-height:.95;font-variant-numeric:tabular-nums}
 .half.winner{background:var(--shuttle);color:var(--shuttle-ink)}
@@ -303,10 +307,14 @@ function firstPlannedIndex(){const i=S.rounds.findIndex(r=>r.status==='planned')
 /* ---------- rendering ---------- */
 function nameTag(id){const p=P(id);return`<span class="pn">${esc(nm(id))}${p&&p.rank===2?'<span class="r2" title="Rank 2">*</span>':''}</span>`}
 
-function courtHTML(m,ci){
+function courtHTML(m,ci,ri){
+  let btn='';
+  if(ri!=null){const r=S.rounds[ri],g=findScore(r.id,ci),d=drafts[r.id+':'+ci];
+    const lbl=g?`Score ${g.sa}–${g.sb} · Edit`:d&&(d.sa||d.sb)?`Continue ${d.sa||0}–${d.sb||0}`:'Keep score';
+    btn=`<button class="btn shuttle court-score" data-act="scoreLive" data-i="${ri}" data-c="${ci}">${lbl}</button>`}
   return`<div class="court"><div class="cl">Court ${ci+1}</div><div class="cbox">
     <div class="side">${m.a.map(nameTag).join('')}</div><div class="net"></div><div class="side">${m.b.map(nameTag).join('')}</div>
-  </div></div>`;
+  </div>${btn}</div>`;
 }
 
 function roundHTML(r,i,firstPlanned,hasLive){
@@ -315,7 +323,7 @@ function roundHTML(r,i,firstPlanned,hasLive){
   else if(r.status==='done')pill='<span class="pill">Finished</span>';
   else if(i===firstPlanned)pill='<span class="pill next">Next up</span>';
   else if(r.locked)pill='<span class="pill">Set by you</span>';
-  const courts=r.matches.length?`<div class="courts">${r.matches.map(courtHTML).join('')}</div>`:'<p class="empty">Not enough players for a game.</p>';
+  const courts=r.matches.length?`<div class="courts">${r.matches.map((m,c)=>courtHTML(m,c,r.status==='live'?i:null)).join('')}</div>`:'<p class="empty">Not enough players for a game.</p>';
   const sits=r.sits&&r.sits.length?`<p class="sits">Sitting out: <b>${r.sits.map(id=>esc(nm(id))).join(', ')}</b></p>`:'<p class="sits">Everyone plays this round.</p>';
   let acts='';
   if(r.status==='live')acts=`<button class="btn" data-act="finish" data-i="${i}">Finish round</button><button class="btn ghost" data-act="edit" data-i="${i}">Edit teams</button>`;
@@ -608,6 +616,7 @@ document.addEventListener('click',e=>{
     case 'edCancel':closeEditor();break;
     case 'saveCourt':saveCourt(+t.dataset.c);break;
     case 'openScorer':openScorer(+t.dataset.c);break;
+    case 'scoreLive':scoreRound=S.rounds[i].id;openScorer(+t.dataset.c);break;
     case 'pt':{if(scorer.winner)break;const k=t.dataset.team==='a'?'sa':'sb';if(scorer[k]<99){scorer[k]++;scorer.hist.push(k);try{navigator.vibrate&&navigator.vibrate(12)}catch(e){}updateScorer()}break}
     case 'undoPt':{const k=scorer.hist.pop();if(k&&scorer[k]>0)scorer[k]--;updateScorer();break}
     case 'resetPts':if(confirm('Reset this game to 0–0?')){scorer.sa=0;scorer.sb=0;scorer.hist=[];updateScorer()}break;
